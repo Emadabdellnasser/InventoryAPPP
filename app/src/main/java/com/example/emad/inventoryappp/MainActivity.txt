@@ -1,0 +1,142 @@
+package com.example.emad.inventoryappp;
+
+import android.content.Intent;
+import android.database.Cursor;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.AbsListView;
+import android.widget.Button;
+import android.widget.ListView;
+import android.widget.Toast;
+
+public class MainActivity extends AppCompatActivity {
+
+    InventoryHelper helper;
+    CursorAdapter adapter;
+    Button addButon;
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+        helper = new InventoryHelper(this);
+
+
+       addButon= (Button) findViewById(R.id.adding_product);
+        addButon.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, Details.class);
+                startActivity(intent);
+
+
+            }
+        });
+
+        final ListView listView = (ListView) findViewById(R.id.listview);
+        View emptyView = findViewById(R.id.emptyText);
+        listView.setEmptyView(emptyView);
+        Cursor cursor = helper.readingAllProducts();
+        adapter = new CursorAdapter(this, cursor);
+        listView.setAdapter(adapter);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        adapter.swapCursor(helper.readingAllProducts());
+    }
+
+    public void clickingOnAnyItem(long id) {
+        Intent intent = new Intent(this, Details.class);
+        intent.putExtra("itemId", id);
+        startActivity(intent);
+    }
+
+    public void Sale(long id, int quantity) {
+        helper.sellOneItem(id, quantity);
+        adapter.swapCursor(helper.readingAllProducts());
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.action_add_all_Table_data:
+
+                addInitialData();
+                adapter.swapCursor(helper.readingAllProducts());
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+
+    private void addInitialData() {
+
+
+
+        Item nokia = new Item(
+                "nokia",
+                "900 €",
+                70,
+                "emad",
+                "+02 000 000 0000",
+                "emad@mob.com",
+                "android.resource://com.example.emad.inventoryappp/drawable/nokia");
+        helper.insertingItem(nokia);
+
+        Item sum = new Item(
+                "sumsong",
+                "900 €",
+                79,
+                "emad",
+                "+02 000 000 0000",
+                "emad@mob.com",
+                "android.resource://com.example.emad.inventoryappp/drawable/s");
+        helper.insertingItem(sum);
+        Item tecn = new Item(
+                "tecno",
+                "900 €",
+                70,
+                "emad",
+                "+02 000 000 0000",
+                "emad@mob.com",
+                "android.resource://com.example.emad.inventoryappp/drawable/tec");
+        helper.insertingItem(tecn);
+
+
+        Item sump = new Item(
+                "sumsong prime",
+                "1900 €",
+                84,
+                "emad",
+                "+02 000 000 0000",
+                "emad@mob.com",
+                "android.resource://com.example.emad.inventoryappp/drawable/sump");
+        helper.insertingItem(sump);
+
+        Item hw = new Item(
+                "HUW",
+                "500 €",
+                94,
+                "emad",
+                "+02 000 000 0000",
+                "emad@mob.com",
+                "android.resource://com.example.emad.inventoryappp/drawable/h");
+
+        helper.insertingItem(hw);
+
+    }
+}

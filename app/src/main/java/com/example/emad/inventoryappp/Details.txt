@@ -1,0 +1,409 @@
+package com.example.emad.inventoryappp;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.NavUtils;
+import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
+import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+
+/**
+ * Created by EMAD on 2/14/2018.
+ */
+
+public class Details extends AppCompatActivity {
+    private static final String LOG_TAG = Details.class.getCanonicalName();
+    private static final int MY_PERMITION_TO_READ_EXTERNAL_STORAGE = 1;
+    private InventoryHelper helper;
+    EditText editTextName;
+    EditText editTextprice;
+    EditText editTextquantity;
+    EditText editTextsupplierName;
+    EditText edittextsupplierPhone;
+    EditText edittextsupplierEmail;
+    long recievedId;
+    ImageButton decreasingQuantity;
+    ImageButton increasingQuantity;
+    Button selectPhotoBt;
+    ImageView imageView;
+    Uri currentUri;
+    private static final int PICK_IMAGE_REQUEST = 0;
+    Boolean infoProductHasChanged = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.details);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+
+        editTextName = (EditText) findViewById(R.id.product_name);
+        editTextprice = (EditText) findViewById(R.id.price);
+        editTextquantity = (EditText) findViewById(R.id.quantity_edit);
+        editTextsupplierName = (EditText) findViewById(R.id.supplierName);
+        edittextsupplierPhone = (EditText) findViewById(R.id.supplierphone);
+        edittextsupplierEmail = (EditText) findViewById(R.id.email_address);
+        decreasingQuantity = (ImageButton) findViewById(R.id.decrease_quantity);
+        increasingQuantity = (ImageButton) findViewById(R.id.increase_quantity);
+        selectPhotoBt = (Button) findViewById(R.id.addphoto);
+        imageView = (ImageView) findViewById(R.id.imagePlace);
+        helper = new InventoryHelper(this);
+        recievedId = getIntent().getLongExtra("itemId", 0);
+
+        if (recievedId == 0) {
+            setTitle(getString(R.string.editor_activity_title_new_item));
+        } else {
+            setTitle(getString(R.string.editor_activity_title_edit_item));
+            addValuesToEditItem(recievedId);
+        }
+
+        decreasingQuantity.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                subtractingOneFromTheQuantity();
+                infoProductHasChanged = true;
+            }
+        });
+
+        increasingQuantity.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                sumingOneToQuantity();
+                infoProductHasChanged = true;
+            }
+        });
+
+        selectPhotoBt.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                tryOpeningImageSelector();
+                infoProductHasChanged = true;
+            }
+        });
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!infoProductHasChanged) {
+            super.onBackPressed();
+            return;
+        }
+        DialogInterface.OnClickListener discardBtClick =
+                new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        finish();
+                    }
+                };
+        // Showing dialog  to inform that there are unsaved changes
+        makesureOnSavingDataDialog(discardBtClick);
+    }
+
+    private void makesureOnSavingDataDialog(
+            DialogInterface.OnClickListener discardBtClick) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage(R.string.unsaved_changes_dialog_msg);
+        builder.setPositiveButton(R.string.discard, discardBtClick);
+        builder.setNegativeButton(R.string.keep_editing, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                dialog.dismiss();
+            }
+        });
+        AlertDialog alert = builder.create();
+        alert.show();
+    }
+
+    private void subtractingOneFromTheQuantity() {
+        String getedValue = editTextquantity.getText().toString();
+        int getedValueInteger;
+
+         if (getedValue.equals("0")) {
+            return;
+        } else {
+             getedValueInteger = Integer.parseInt(getedValue);
+            editTextquantity.setText(String.valueOf(getedValueInteger - 1));
+        }
+    }
+
+    private void sumingOneToQuantity() {
+        String getedValue = editTextquantity.getText().toString();
+        int getedValueInteger;
+        if (getedValue.isEmpty()) {
+            getedValueInteger = 0;
+        } else {
+            getedValueInteger = Integer.parseInt(getedValue);
+        }
+        editTextquantity.setText(String.valueOf(getedValueInteger + 1));
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_details, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        super.onPrepareOptionsMenu(menu);
+        if (recievedId == 0) {
+            MenuItem deleteOneItemMenuItem = menu.findItem(R.id.action_delete_item);
+            MenuItem deleteAllMenuItem = menu.findItem(R.id.action_delete_all_data);
+            MenuItem orderMenuItem = menu.findItem(R.id.action_order);
+            deleteOneItemMenuItem.setVisible(false);
+            deleteAllMenuItem.setVisible(false);
+            orderMenuItem.setVisible(false);
+        }
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.action_save:
+
+                if (!addingItemToTheTable()) {
+                    return true;
+                }
+                finish();
+                return true;
+            case android.R.id.home:
+                if (!infoProductHasChanged) {
+                    NavUtils.navigateUpFromSameTask(this);
+                    return true;
+                }
+                DialogInterface.OnClickListener discardButtonClickListener =
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                                // User clicked "Discard" button ,go to the parent activity
+                                NavUtils.navigateUpFromSameTask(Details.this);
+                            }
+                        };
+                // Show a dialog to inform the user they have unsaved changes
+                makesureOnSavingDataDialog(discardButtonClickListener);
+                return true;
+            case R.id.action_order:
+
+                showingOrderConfirmationDialog();
+                return true;
+            case R.id.action_delete_item:
+                // delete one item
+                showingdeleteConfirmationDialog(recievedId);
+                return true;
+            case R.id.action_delete_all_data:
+                //delete all products
+                showingdeleteConfirmationDialog(0);
+                return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private boolean addingItemToTheTable() {
+        boolean isAllOk = true;
+        if (!checkIfEditInput(editTextName)) {
+            isAllOk = false;
+        }
+        if (!checkIfEditInput(editTextprice)) {
+            isAllOk = false;
+        }
+        if (!checkIfEditInput(editTextquantity)) {
+            isAllOk = false;
+        }
+        if (!checkIfEditInput(editTextsupplierName)) {
+            isAllOk = false;
+        }
+        if (!checkIfEditInput(edittextsupplierPhone)) {
+            isAllOk = false;
+        }
+        if (!checkIfEditInput(edittextsupplierEmail)) {
+            isAllOk = false;
+        }
+        if ( currentUri== null && recievedId == 0) {
+            isAllOk = false;
+            selectPhotoBt.setError("Missing image");
+        }
+        if (!isAllOk) {
+            return false;
+        }
+
+        if (recievedId == 0) {
+            Item item = new Item(
+                    editTextName.getText().toString().trim(),
+                    editTextprice.getText().toString().trim(),
+                    Integer.parseInt(editTextquantity.getText().toString().trim()),
+                    editTextsupplierName.getText().toString().trim(),
+                    edittextsupplierPhone.getText().toString().trim(),
+                    edittextsupplierEmail.getText().toString().trim(),
+                    currentUri.toString());
+            helper.insertingItem(item);
+        } else {
+            int quantity = Integer.parseInt(editTextquantity.getText().toString().trim());
+            helper.updatingItem(recievedId, quantity);
+        }
+        return true;
+    }
+
+    private boolean checkIfEditInput(EditText text) {
+        if (TextUtils.isEmpty(text.getText())) {
+            text.setError("cannot be empty ");
+            return false;
+        } else {
+            text.setError(null);
+            return true;
+        }
+    }
+
+    private void addValuesToEditItem(long itemId) {
+        Cursor cursor = helper.readingOneItem(itemId);
+        cursor.moveToFirst();
+        editTextName.setText(cursor.getString(cursor.getColumnIndex(InventoryContract.InventoryEntry.C_NAME)));
+        editTextprice.setText(cursor.getString(cursor.getColumnIndex(InventoryContract.InventoryEntry.C_PRICE)));
+        editTextquantity.setText(cursor.getString(cursor.getColumnIndex(InventoryContract.InventoryEntry.C_QUANTITY)));
+        editTextsupplierName.setText(cursor.getString(cursor.getColumnIndex(InventoryContract.InventoryEntry.C_SUPPLIER_NAME)));
+        edittextsupplierPhone.setText(cursor.getString(cursor.getColumnIndex(InventoryContract.InventoryEntry.C_SUPPLIER_PHONE)));
+        edittextsupplierEmail.setText(cursor.getString(cursor.getColumnIndex(InventoryContract.InventoryEntry.C_SUPPLIER_EMAIL)));
+        imageView.setImageURI(Uri.parse(cursor.getString(cursor.getColumnIndex(InventoryContract.InventoryEntry.C_IMAGE))));
+
+        //prevent the user from edit
+        editTextName.setEnabled(false);
+        editTextprice.setEnabled(false);
+        editTextquantity.setEnabled(false);
+        editTextsupplierName.setEnabled(false);
+        edittextsupplierPhone.setEnabled(false);
+        edittextsupplierEmail.setEnabled(false);
+        selectPhotoBt.setEnabled(false);
+    }
+
+    private void showingOrderConfirmationDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage(R.string.order_message);
+        builder.setPositiveButton(R.string.phone, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                Intent intent = new Intent(Intent.ACTION_DIAL);
+                intent.setData(Uri.parse("tel:" + edittextsupplierPhone.getText().toString().trim()));
+                startActivity(intent);
+            }
+        });
+        builder.setNegativeButton(R.string.email, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                Intent intent = new Intent(android.content.Intent.ACTION_SENDTO);
+                intent.setType("text/plain");
+                intent.setData(Uri.parse("mailto:" + edittextsupplierEmail.getText().toString().trim()));
+                intent.putExtra(android.content.Intent.EXTRA_SUBJECT, " New product order");
+                String Message = "Please send us more products of " +
+                        editTextName.getText().toString().trim() ;
+                intent.putExtra(android.content.Intent.EXTRA_TEXT, Message);
+                startActivity(intent);
+            }
+        });
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+    }
+
+    private int deleteAll() {
+        SQLiteDatabase database = helper.getWritableDatabase();
+        return database.delete(InventoryContract.InventoryEntry.TABLE_NAME, null, null);
+    }
+
+    private int deleteOneItem(long itemId) {
+        SQLiteDatabase database = helper.getWritableDatabase();
+        String selection = InventoryContract.InventoryEntry._ID + "=?";
+        String[] selectionArgs = { String.valueOf(itemId) };
+        int rowsD = database.delete(
+                InventoryContract.InventoryEntry.TABLE_NAME, selection, selectionArgs);
+        return rowsD;
+    }
+
+    private void showingdeleteConfirmationDialog(final long itemId) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage(R.string.delete_message);
+        builder.setPositiveButton(R.string.delete, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                if (itemId == 0) {
+                    deleteAll();
+                } else {
+                    deleteOneItem(itemId);
+                }
+                finish();
+            }
+        });
+        builder.setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                if (dialog != null) {
+                    dialog.dismiss();
+                }
+            }
+        });
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+    }
+
+    public void tryOpeningImageSelector() {
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                    MY_PERMITION_TO_READ_EXTERNAL_STORAGE);
+            return;
+        }
+        openingImageSelector();
+    }
+
+    private void openingImageSelector() {
+        Intent intent;
+        if (Build.VERSION.SDK_INT < 19) {
+            intent = new Intent(Intent.ACTION_GET_CONTENT);
+        } else {
+            intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+        }
+        intent.setType("image/*");
+        startActivityForResult(Intent.createChooser(intent, "Selecting Picture"), PICK_IMAGE_REQUEST);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case MY_PERMITION_TO_READ_EXTERNAL_STORAGE: {
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    openingImageSelector();
+
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent resultData) {
+
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK) {
+
+            if (resultData != null) {
+                currentUri = resultData.getData();
+                imageView.setImageURI(currentUri);
+                imageView.invalidate();
+            }
+        }
+    }
+}
